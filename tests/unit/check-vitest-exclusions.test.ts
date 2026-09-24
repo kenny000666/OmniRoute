@@ -11,7 +11,9 @@ test("the checked-in inventory only lists files that exist", () => {
   const inv = JSON.parse(
     fs.readFileSync(path.join(ROOT, "config/quality/vitest-exclusions.json"), "utf8")
   );
-  assert.ok(inv.excluded.length > 0, "inventory is not empty");
+  // #14493 repaired every quarantined suite, so an empty inventory is the goal, not a
+  // vacuous pass: the live-config test below still fails on any exclusion it does not list.
+  assert.ok(Array.isArray(inv.excluded), "inventory has an excluded list");
   for (const entry of inv.excluded) {
     assert.ok(fs.existsSync(path.join(ROOT, entry.file)), `${entry.file} exists`);
     assert.match(entry.issue, /^#\d+$/, `${entry.file} names a tracking issue`);

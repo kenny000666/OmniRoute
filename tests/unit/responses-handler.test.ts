@@ -567,7 +567,9 @@ test("handleResponsesCore restores custom tools nested in namespaces", async () 
 test("handleResponsesCore injects SSE keepalive frames for Responses streams", async (t) => {
   // PR #2233 changed the Responses-API heartbeat shape from a SSE comment
   // (`: keepalive ...`) to a `data: {"type":"response.in_progress"}` frame,
-  // because strict proxies only count `data:` lines as activity.
+  // because strict proxies only count `data:` lines as activity. #14572 (#14330)
+  // then gave that frame the `sequence_number` and `response` object every typed
+  // Responses event needs, so strict decoders (openai-python, Codex CLI) accept it.
   t.mock.timers.enable({ apis: ["setInterval"] });
   try {
     const { result } = await invokeResponsesCore({
@@ -582,7 +584,10 @@ test("handleResponsesCore injects SSE keepalive frames for Responses streams", a
 
     const sse = await result.response.text();
 
-    assert.match(sse, /data: \{"type":"response\.in_progress"\}/);
+    assert.match(
+      sse,
+      /data: \{"type":"response\.in_progress","sequence_number":\d+,"response":\{"id":null,"status":"in_progress"\}\}/
+    );
     assert.match(sse, /event: response\.created/);
     assert.match(sse, /data: \[DONE\]/);
   } finally {

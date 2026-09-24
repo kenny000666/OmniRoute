@@ -50,17 +50,21 @@ test("A1: home page fetches settings + machineId concurrently (#11396)", () => {
 
   const pair = src.match(/const \[settings, machineId\] = await Promise\.all\(\[([\s\S]*?)\]\);/s);
   assert.ok(pair, "expected `[settings, machineId] = await Promise.all([...])`");
-  assert.match(pair![1], /\bgetSettings\(\)/);
+  // #14421 routes the settings read through loadHomeSettings(), which defaults to
+  // getSettings and degrades to defaults on a corrupted DB; it must stay in the batch.
+  assert.match(pair![1], /\bloadHomeSettings\(\)/);
   assert.match(pair![1], /\bgetMachineId\(\)/);
   // destructuring order must stay (settings → machineId), or values swap
-  assert.ok(pair![1].indexOf("getSettings()") < pair![1].indexOf("getMachineId()"));
+  assert.ok(pair![1].indexOf("loadHomeSettings()") < pair![1].indexOf("getMachineId()"));
+  const loader = readSource("src/app/(dashboard)/home/loadHomeSettings.ts");
+  assert.match(loader, /load: \(\) => Promise<HomeSettings> = getSettings/);
 
   // both values are still consumed exactly as before the batching
   assert.match(src, /setupComplete=\{Boolean\(settings\.setupComplete\)\}/);
   assert.match(src, /machineId=\{machineId\}/);
 
   // no serial awaits left for these two reads
-  assert.doesNotMatch(src, /await getSettings\(\)\s*;/);
+  assert.doesNotMatch(src, /await (getSettings|loadHomeSettings)\(\)\s*;/);
   assert.doesNotMatch(src, /await getMachineId\(\)\s*;/);
 });
 
