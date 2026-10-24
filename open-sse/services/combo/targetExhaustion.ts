@@ -615,6 +615,22 @@ function markConnectionLevelExhaustion(
   const { result, errorText, sets, log, tag, rawModel, requestScopedFailure, structuredError } =
     opts;
   const provider = target.provider;
+  // Passthrough/per-model-quota providers multiplex many independent models behind one
+  // API key/connection. A 502/503/504 from ONE model's backend (e.g. ProfundoAI) is
+  // model-scoped — the connection itself is healthy and sibling models may still serve
+  // the request. Suppress the connection-level skip and fall through to model lockout.
+  if (
+    provider &&
+    provider !== "unknown" &&
+    (result.status === 502 || result.status === 503 || result.status === 504) &&
+    hasPerModelQuota(provider, rawModel)
+  ) {
+    log.info(
+      tag,
+      `Provider ${provider} returned ${result.status} for model ${rawModel} — model-scoped failure on a passthrough provider; suppressing connection skip, falling through to model lockout`
+    );
+    return;
+  }
   if (
     !provider ||
     provider === "unknown" ||
